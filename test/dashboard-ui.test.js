@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const pendingDashboardRequests = new Set();
+const dashboardTimeouts = new Set();
+const nativeSetTimeout = globalThis.setTimeout.bind(globalThis);
+const nativeClearTimeout = globalThis.clearTimeout.bind(globalThis);
+
 class TestElement {
   constructor(tag = "div") {
     this.tag = tag;
@@ -107,45 +112,73 @@ async function loadDashboard(taskId, getTaskResult, options = {}) {
   const recent = options.recentTasks ?? Array.from({ length: 100 }, (_, index) => task(`recent-${index}`, 59 - index % 60));
   const methods = [];
   const requests = [];
-  const fetch = vi.fn(async (url, requestOptions) => {
-    if (String(url).startsWith("/ui/api/tasks/")) {
-      const id = decodeURIComponent(String(url).split("/tasks/")[1].split("/progress")[0]);
-      const progress = await options.progressForTask?.(id) ?? { taskId: id, events: [], truncated: false };
-      return progress instanceof Response ? progress : new Response(JSON.stringify(progress), {
+  const fetch = vi.fn((url, requestOptions) => {
+    const requestPromise = (async () => {
+      if (String(url).startsWith("/ui/api/tasks/")) {
+        const id = decodeURIComponent(String(url).split("/tasks/")[1].split("/progress")[0]);
+        const progress = await options.progressForTask?.(id) ?? { taskId: id, events: [], truncated: false };
+        return progress instanceof Response ? progress : new Response(JSON.stringify(progress), {
+          headers: { "Content-Type": "application/json", "X-Bridge-Instance": instanceRef.value },
+        });
+      }
+      const request = JSON.parse(requestOptions.body);
+      methods.push(request.method);
+      requests.push(request);
+      const body = request.method === "GetTask"
+        ? typeof getTaskResult === "function" ? getTaskResult(request.params.id) : getTaskResult
+        : { result: { tasks: recent, totalSize: recent.length + 1, nextPageToken: "more" } };
+      const responseBody = structuredClone(body);
+      const historyLength = request.params?.historyLength;
+      if (Number.isInteger(historyLength) && historyLength > 0) {
+        if (Array.isArray(responseBody.result?.history)) {
+          responseBody.result.history = responseBody.result.history.slice(-historyLength);
+        }
+        for (const listedTask of responseBody.result?.tasks ?? []) {
+          if (Array.isArray(listedTask.history)) listedTask.history = listedTask.history.slice(-historyLength);
+        }
+      }
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.id, ...responseBody }), {
         headers: { "Content-Type": "application/json", "X-Bridge-Instance": instanceRef.value },
       });
-    }
-    const request = JSON.parse(requestOptions.body);
-    methods.push(request.method);
-    requests.push(request);
-    const body = request.method === "GetTask"
-      ? typeof getTaskResult === "function" ? getTaskResult(request.params.id) : getTaskResult
-      : { result: { tasks: recent, totalSize: recent.length + 1, nextPageToken: "more" } };
-    const responseBody = structuredClone(body);
-    const historyLength = request.params?.historyLength;
-    if (Number.isInteger(historyLength) && historyLength > 0) {
-      if (Array.isArray(responseBody.result?.history)) {
-        responseBody.result.history = responseBody.result.history.slice(-historyLength);
-      }
-      for (const listedTask of responseBody.result?.tasks ?? []) {
-        if (Array.isArray(listedTask.history)) listedTask.history = listedTask.history.slice(-historyLength);
-      }
-    }
-    return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.id, ...responseBody }), {
-      headers: { "Content-Type": "application/json", "X-Bridge-Instance": instanceRef.value },
-    });
+    })();
+    pendingDashboardRequests.add(requestPromise);
+    void requestPromise.then(
+      () => pendingDashboardRequests.delete(requestPromise),
+      () => pendingDashboardRequests.delete(requestPromise),
+    );
+    return requestPromise;
   });
   vi.stubGlobal("document", document);
   vi.stubGlobal("window", window);
   vi.stubGlobal("fetch", fetch);
   vi.stubGlobal("setInterval", (callback) => { intervals.push(callback); return 0; });
+  vi.stubGlobal("setTimeout", (callback, delay, ...args) => {
+    let handle;
+    handle = nativeSetTimeout(() => {
+      dashboardTimeouts.delete(handle);
+      callback(...args);
+    }, delay);
+    dashboardTimeouts.add(handle);
+    return handle;
+  });
+  vi.stubGlobal("clearTimeout", (handle) => {
+    dashboardTimeouts.delete(handle);
+    return nativeClearTimeout(handle);
+  });
 
   await import("../ui/app.js");
   await vi.waitFor(() => expect(methods).toContain("ListTasks"));
   return { elements, methods, requests, window, fetch, document, intervals, instanceRef };
 }
 
-afterEach(() => {
+afterEach(async () => {
+  for (let pass = 0; pass < 20 && pendingDashboardRequests.size > 0; pass += 1) {
+    await Promise.allSettled([...pendingDashboardRequests]);
+  }
+  await new Promise((resolve) => nativeSetTimeout(resolve, 0));
+  await Promise.resolve();
+  for (const handle of dashboardTimeouts) nativeClearTimeout(handle);
+  dashboardTimeouts.clear();
   vi.unstubAllGlobals();
   vi.resetModules();
 });

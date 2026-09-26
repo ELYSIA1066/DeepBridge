@@ -1,6 +1,9 @@
-# Agent-To-Agents
+# DeepBridge
 
-A local MCP/A2A bridge that allows Codex to delegate tasks to DeepSeek Harness with reusable conversation context.
+A local MCP/A2A bridge that enables Codex to delegate tasks to DeepSeek Harness with reusable conversation context.
+
+[![Test](https://github.com/ELYSIA1066/DeepBridge/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/ELYSIA1066/DeepBridge/actions/workflows/test.yml)
+[![License](https://img.shields.io/github/license/ELYSIA1066/DeepBridge)](LICENSE)
 
 ## Overview
 
@@ -49,11 +52,9 @@ npm install --global @deepseek-ai/dsh@0.1.5-rc.3
 
 ## Installation
 
-Replace `<repository-url>` with the URL of the public repository:
-
 ```sh
-git clone <repository-url>
-cd Agent-To-Agents
+git clone https://github.com/ELYSIA1066/DeepBridge.git
+cd DeepBridge
 npm install
 ```
 
