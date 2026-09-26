@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f4f7f5" />
+    <title>任务检查器 · DeepSeek Bridge</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="DeepSeek Bridge 任务检查器">
+          <span class="brand-mark" aria-hidden="true">D</span>
+          <span class="brand-copy">
+            <strong>DeepSeek Bridge</strong>
+            <span>任务检查器</span>
+          </span>
+        </a>
+        <div class="topbar-meta">
+          <span class="runtime-count"><strong id="total-count">—</strong> Tasks</span>
+          <span class="runtime-count"><strong id="header-context-count">—</strong> Contexts</span>
+          <span class="runtime-count"><strong id="active-count">—</strong> Running</span>
+          <span class="topbar-badge" title="只读视图；此页面不会提交、取消或修改任务">Read-only</span>
+          <span class="topbar-badge memory-badge" title="任务、上下文/会话映射和执行过程只存在于当前 Bridge 进程；重启后会清空">In-memory</span>
+          <span class="refresh-cadence">Auto refresh · 3s</span>
+          <span class="topbar-divider" aria-hidden="true"></span>
+          <span id="connection" class="connection" role="status" aria-live="polite">
+            <span class="connection-dot" aria-hidden="true"></span>
+            <span id="connection-label" class="connection-label">正在连接</span>
+          </span>
+          <span class="updated-meta">Updated <time id="updated-at">—</time></span>
+          <button id="refresh" class="button button-refresh" type="button" aria-label="刷新任务列表">
+            <span aria-hidden="true">↻</span>
+            刷新
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace" aria-label="Bridge 任务检查器">
+        <aside class="pane contexts-pane" aria-labelledby="contexts-heading">
+          <div class="pane-heading">
+            <div class="pane-title-group">
+              <span class="pane-index">01</span>
+              <div>
+                <p class="pane-kicker">GROUP BY CONTEXT</p>
+                <h1 id="contexts-heading">上下文</h1>
+              </div>
+            </div>
+            <span id="context-count" class="heading-count">—</span>
+          </div>
+          <label class="search-wrap">
+            <span class="sr-only">搜索上下文</span>
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input id="context-search" type="search" placeholder="搜索上下文" autocomplete="off" />
+            <kbd>/</kbd>
+          </label>
+          <nav id="context-list" class="context-list scroll-region" aria-label="任务上下文"></nav>
+          <div class="pane-footnote">
+            <span class="footnote-mark" aria-hidden="true">i</span>
+            <span>上下文仅用于归组，不代表 ACP 会话仍然存活。</span>
+          </div>
+        </aside>
+
+        <section class="pane tasks-pane" aria-labelledby="tasks-heading">
+          <div class="pane-heading">
+            <div class="pane-title-group">
+              <span class="pane-index">02</span>
+              <div>
+                <p class="pane-kicker">A2A TASKS</p>
+                <h2 id="tasks-heading">任务</h2>
+              </div>
+            </div>
+            <span id="current-context" class="current-context">全部上下文</span>
+            <span id="visible-count" class="heading-count">0 / 0</span>
+          </div>
+          <label class="search-wrap">
+            <span class="sr-only">搜索任务</span>
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input id="task-search" type="search" placeholder="搜索输入、状态或 ID" autocomplete="off" />
+            <kbd>/</kbd>
+          </label>
+          <div id="task-list" class="task-list scroll-region" aria-label="任务列表"></div>
+          <div class="pane-bottom">
+            <button id="load-more" class="button button-load-more" type="button" hidden>加载更早任务</button>
+          </div>
+        </section>
+
+        <section class="pane inspector-pane" aria-labelledby="inspector-heading">
+          <div class="inspector-top">
+            <div class="pane-heading inspector-heading">
+              <div class="pane-title-group">
+                <span class="pane-index">03</span>
+                <div>
+                  <p class="pane-kicker">READ-ONLY INSPECTOR</p>
+                  <h2 id="inspector-heading">检查器</h2>
+                </div>
+              </div>
+              <span id="inspector-status" class="inspector-status">未选择任务</span>
+            </div>
+            <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+            <div class="inspector-toolbar">
+              <div id="selected-task-label" class="selected-task-label">从任务列表选择一项</div>
+              <span id="copy-announcement" class="copy-announcement" role="status" aria-live="polite"></span>
+            </div>
+            <div class="tab-bar" role="tablist" aria-label="任务视图">
+              <button id="tab-overview" class="tab-button" type="button" role="tab" aria-selected="true" aria-controls="task-detail" data-tab="overview">概览</button>
+              <button id="tab-timeline" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="task-detail" data-tab="timeline">时间线</button>
+              <button id="tab-raw" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="task-detail" data-tab="raw">原始数据</button>
+              <span id="timeline-count" class="timeline-count">0 条记录</span>
+            </div>
+          </div>
+          <div id="task-detail" class="task-detail scroll-region" role="tabpanel" aria-labelledby="tab-overview"></div>
+        </section>
+      </main>
+      <div class="sr-only" id="live-announcement" role="status" aria-live="polite"></div>
+    </div>
+  </body>
+</html>
